@@ -23,6 +23,7 @@ from http.client import responses as http_status_codes
 from sphinx.util import logging
 
 from sphinxcontrib.openapi import utils
+from .openapi20 import convert_json_schema, is_2xx_response
 
 
 LOG = logging.getLogger(__name__)
@@ -337,6 +338,13 @@ def _httpresource(
                 query_param_examples.append((param["name"], example))
 
     # print request content
+    request_content = properties.get("requestBody", {}).get("content", {})
+    if request_content and "application/json" in request_content:
+        schema = request_content["application/json"]["schema"]
+        yield ''
+        for line in convert_json_schema(schema):
+            yield '{indent}{line}'.format(**locals())
+        yield ''
     if render_request:
         request_content = properties.get("requestBody", {}).get("content", {})
         if request_content and "application/json" in request_content:
@@ -378,6 +386,17 @@ def _httpresource(
                 response.get("content", {}), status=status, nb_indent=2
             ):
                 yield line
+        ):
+        if not is_2xx_response(status):
+            continue
+
+        response_content = response.get("content", {}).get('application/json', {})
+        if 'schema' in response_content:
+            yield ''
+            for line in convert_json_schema(response_content['schema'], directive=':>json'):
+                yield '{indent}{line}'.format(**locals())
+            yield ''
+
 
     # print request header params
     for param in filter(lambda p: p["in"] == "header", parameters):
@@ -393,6 +412,22 @@ def _httpresource(
             yield indent + ":resheader {name}:".format(name=headername)
             for line in convert(header.get("description", "")).splitlines():
                 yield "{indent}{indent}{line}".format(**locals())
+
+    for status, response in responses.items():
+        if "schema" in response:
+            schema = response["schema"]
+            if "properties" in schema:
+                yield ""
+                req_properties = json.dumps(
+                    schema["properties"], indent=2, separators=(",", ":")
+                )
+                yield "{indent}**Request body:**".format(**locals())
+                yield ""
+                yield "{indent}.. sourcecode:: json".format(**locals())
+                yield ""
+                for line in req_properties.splitlines():
+                    # yield indent + line
+                    yield "{indent}{indent}{line}".format(**locals())
 
     for cb_name, cb_specs in properties.get("callbacks", {}).items():
         yield ""
