@@ -386,7 +386,6 @@ def _httpresource(
                 response.get("content", {}), status=status, nb_indent=2
             ):
                 yield line
-        ):
         if not is_2xx_response(status):
             continue
 
@@ -396,7 +395,6 @@ def _httpresource(
             for line in convert_json_schema(response_content['schema'], directive=':>json'):
                 yield '{indent}{line}'.format(**locals())
             yield ''
-
 
     # print request header params
     for param in filter(lambda p: p["in"] == "header", parameters):
